@@ -220,7 +220,7 @@
     busy(true); say('Payment khul raha hai…');
     post('/order', { product:p }).then(function(o){
       if (!o.ok) throw new Error(o.error || 'order');
-      var cf = Cashfree({ mode:'sandbox' });
+      var cf = Cashfree({ mode:'production' });
       cf.checkout({ paymentSessionId: o.paymentSessionId, redirectTarget: '_modal' })
         .then(function(result){
           if (result && result.error) {
