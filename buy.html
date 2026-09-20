@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
 <style>
   :root{
     --navy:#1A237E; --orange:#FF6F00; --cream:#FFF9F0; --paper:#FFFFFF;
@@ -156,7 +156,7 @@
     <ul id="historyList"></ul>
   </section>
   <footer class="legalfoot">
-    <p>Payments are processed securely by Razorpay.</p>
+    <p>Payments are processed securely by Cashfree.</p>
     <p><a href="/terms.html">Terms</a> &middot; <a href="/privacy.html">Privacy</a> &middot; <a href="/refund.html">Refunds</a> &middot; <a href="/delivery.html">Delivery</a> &middot; <a href="/contact.html">Contact</a></p>
   </footer>
 </main>
@@ -216,25 +216,22 @@
 
   // ---- pay ----
   payBtn.addEventListener('click', function(){
-    if (typeof Razorpay === 'undefined') { say('Payment system load nahi hua. Internet check karke page refresh karein.', true); return; }
     var p = productKey();
     busy(true); say('Payment khul raha hai…');
     post('/order', { product:p }).then(function(o){
       if (!o.ok) throw new Error(o.error || 'order');
-      var lastFail = '';
-      var rz = new Razorpay({
-        key:o.keyId, amount:o.amount, currency:'INR', order_id:o.orderId,
-        name:'GyaanPe', description:label(p), theme:{ color:'#FF6F00' },
-        handler:function(r){
-          confirmPay({ orderId:r.razorpay_order_id, paymentId:r.razorpay_payment_id, signature:r.razorpay_signature });
-        },
-        modal:{ ondismiss:function(){ busy(false); say(lastFail ? 'Payment nahi hua' + lastFail + '. Paisa kata ho to 5-7 din mein wapas aa jata hai.' : 'Payment band kar diya gaya. Jab chahein dobara try karein.', !!lastFail); } }
-      });
-      // Window khuli rehti hai aur user dobara try kar sakta hai — message sirf band hone pe
-      rz.on('payment.failed', function(e){
-        lastFail = (e && e.error && e.error.description) ? ': ' + e.error.description : ' ';
-      });
-      rz.open();
+      var cf = Cashfree({ mode:'sandbox' });
+      cf.checkout({ paymentSessionId: o.paymentSessionId, redirectTarget: '_modal' })
+        .then(function(result){
+          if (result && result.error) {
+            busy(false);
+            say('Payment nahi hua. Dobara try karein.', true);
+            return;
+          }
+          confirmPay({ orderId: o.orderId, product: p });
+        }).catch(function(){
+          busy(false); say('Payment window mein kuch gadbad. Dobara try karein.', true);
+        });
     }).catch(function(){
       busy(false); say('Abhi payment shuru nahi ho paaya. Thodi der mein dobara try karein.', true);
     });
@@ -245,7 +242,7 @@
     tries = tries || 0;
     save('gp_pending', p);
     busy(true); say('Payment check ho raha hai, code ban raha hai…');
-    post('/confirm', p).then(function(res){
+    post('/confirm', { orderId: p.orderId, product: p.product }).then(function(res){
       if (res.ok) { drop('gp_pending'); showCode(res); return; }
       busy(false);
       say('Code nahi ban paaya (' + res.error + '). Payment ID ' + p.paymentId + ' ke saath humein WhatsApp karein.', true);
